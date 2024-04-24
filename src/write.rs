@@ -23,14 +23,18 @@ struct Items {
     Diagnostic: Vec<Diagnostic>,
 }
 
-pub fn write_diagnostics(data: &Vec<Diagnostic>, config: &Config, model: &Model) {
+pub fn write_diagnostics(
+    data: &Vec<Diagnostic>,
+    config: &Config,
+    model: &Model,
+) -> Result<(), String> {
     let modelsPath = Path::new(&config.modelpath);
     if !modelsPath.exists() {
-        panic!("Base model path in config doesn't exist");
+        return Err("Base model path in config doesn't exist".to_owned());
     }
     let modelPath = modelsPath.join(&model.name);
     if !modelPath.exists() {
-        panic!("Model in config doesn't exist");
+        return Err("Model in config doesn't exist".to_owned());
     }
 
     let supp_file_path = modelPath
@@ -38,8 +42,10 @@ pub fn write_diagnostics(data: &Vec<Diagnostic>, config: &Config, model: &Model)
         .join("AxIgnoreDiagnosticList")
         .join(format!("{}_BPSuppressions.xml", &model.name));
     if !supp_file_path.exists() {
-        println!("{}", supp_file_path.to_str().unwrap());
-        panic!("Suppressions file doesn't exist in model");
+        return Err(format!(
+            "Suppressions file doesn't exist in model: {}",
+            supp_file_path.to_str().unwrap()
+        ));
     }
     let xml = fs::read_to_string(&supp_file_path).unwrap();
     let mut suppressions: IgnoreDiagnostics = from_str(&xml).unwrap();
@@ -74,6 +80,8 @@ pub fn write_diagnostics(data: &Vec<Diagnostic>, config: &Config, model: &Model)
         }
     }
     // println!("{0:?}", diags.Items);
+
+    Ok(())
 }
 
 fn format_xml(src: &[u8]) -> Result<String, xml::reader::Error> {

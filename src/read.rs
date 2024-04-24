@@ -33,21 +33,21 @@ pub struct Diagnostic {
     pub Justification: String,
 }
 
-pub fn read_diagnostics(config: &Config, model: &Model) -> Vec<Diagnostic> {
+pub fn read_diagnostics(config: &Config, model: &Model) -> Result<Vec<Diagnostic>, String> {
     let modelsPath = Path::new(&config.modelpath);
     if !modelsPath.exists() {
-        panic!("Base model path in config doesn't exist");
+        return Err("Base model path in config doesn't exist".to_owned());
     }
     let modelPath = modelsPath.join(&model.name);
     if !modelPath.exists() {
-        panic!("Model in config doesn't exist");
+        return Err("Model in config doesn't exist".to_owned());
     }
 
     let bpFilePath = modelPath.join("BPCheck.xml");
     if !bpFilePath.exists() {
-        panic!("BPCheck.xml doesn't exist in model");
+        return Err("BPCheck.xml doesn't exist in model".to_owned());
     }
     let xml = fs::read_to_string(bpFilePath).unwrap();
     let diags: Diagnostics = from_str(&xml).unwrap();
-    diags.Items.Diagnostic
+    Ok(diags.Items.Diagnostic)
 }

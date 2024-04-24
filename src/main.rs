@@ -156,7 +156,7 @@ impl App {
         self.mode = mode;
     }
 
-    fn write_file(&self) {
+    fn write_file(&self) -> Result<(), String> {
         write_diagnostics(&self.items, &self.config, &self.model)
     }
 
@@ -175,16 +175,20 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let app = match read_config() {
-        Ok((config, model)) => {
-            let data = read_diagnostics(&config, &model);
-            let data = data
-                .into_iter()
-                .filter(|d| d.Severity != "Informational")
-                .collect();
-
-            // create app and run it
-            App::new(data, config, model)
-        }
+        Ok((config, model)) => match read_diagnostics(&config, &model) {
+            Ok(data) => {
+                let data = data
+                    .into_iter()
+                    .filter(|d| d.Severity != "Informational")
+                    .collect();
+                App::new(data, config, model)
+            }
+            Err(e) => {
+                let mut app = App::new(vec![], Config::default(), Model::default());
+                app.set_error(e);
+                app
+            }
+        },
         Err(e) => {
             let mut app = App::new(vec![], Config::default(), Model::default());
             app.set_error(e);
@@ -223,7 +227,10 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         Char('k') | Up => app.previous(),
                         Char('l') | Right => app.next_color(),
                         Char('h') | Left => app.previous_color(),
-                        Char('w') => app.write_file(),
+                        Char('w') => match app.write_file() {
+                            Err(e) => app.set_error(e),
+                            _ => {}
+                        },
                         Enter => app.set_mode(InputMode::Justification),
                         Char('m') => app.set_mode(InputMode::ModelSelect),
                         _ => {}
