@@ -24,9 +24,10 @@ const PALETTES: [tailwind::Palette; 4] = [
     tailwind::RED,
 ];
 const INFO_TEXT_NORMAL: &str =
-    "(Enter) enter justification | (Esc) quit | (↑) move up | (↓) move down | (w) write file";
+    "(Enter) enter justification | (q) quit | (↑) move up | (↓) move down | (w) write file | (Esc) switch model";
 const INFO_TEXT_JUSTIFICATION: &str = "(Enter) go back";
 const INFO_TEXT_ERROR: &str = "(Esc) quit";
+const INFO_TEXT_MODELSELECT: &str = "(Enter) select | (Esc) quit";
 
 const ITEM_HEIGHT: usize = 4;
 
@@ -93,17 +94,17 @@ impl App {
             colors: TableColors::new(&PALETTES[0]),
             color_index: 0,
             items: data_vec,
-            mode: InputMode::Normal,
+            mode: InputMode::ModelSelect,
             model,
             config,
             error_message: String::new(),
         }
     }
 
-    pub fn next(&mut self) {
+    pub fn next(&mut self, count: usize) {
         let i = match self.state.selected() {
             Some(i) => {
-                if i >= self.items.len() - 1 {
+                if i >= count - 1 {
                     0
                 } else {
                     i + 1
@@ -115,11 +116,11 @@ impl App {
         self.scroll_state = self.scroll_state.position(i * ITEM_HEIGHT);
     }
 
-    pub fn previous(&mut self) {
+    pub fn previous(&mut self, count: usize) {
         let i = match self.state.selected() {
             Some(i) => {
                 if i == 0 {
-                    self.items.len() - 1
+                    count - 1
                 } else {
                     i - 1
                 }
@@ -164,6 +165,23 @@ impl App {
         self.set_mode(InputMode::Error);
         self.error_message = error_message;
     }
+
+    pub fn set_model(&mut self, model: Model) {
+        self.model = model;
+        match read_diagnostics(&self.config, &self.model) {
+            Ok(data) => {
+                self.items = data
+                    .into_iter()
+                    .filter(|d| d.Severity != "Informational")
+                    .collect();
+            }
+            Err(e) => self.set_error(e),
+        }
+    }
+
+    pub fn get_selected_model(&self) -> &Model {
+        &self.config.models[self.state.selected().unwrap()]
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -175,20 +193,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let app = match read_config() {
-        Ok((config, model)) => match read_diagnostics(&config, &model) {
-            Ok(data) => {
-                let data = data
-                    .into_iter()
-                    .filter(|d| d.Severity != "Informational")
-                    .collect();
-                App::new(data, config, model)
-            }
-            Err(e) => {
-                let mut app = App::new(vec![], Config::default(), Model::default());
-                app.set_error(e);
-                app
-            }
-        },
+        Ok(config) => App::new(vec![], config, Model::default()),
         Err(e) => {
             let mut app = App::new(vec![], Config::default(), Model::default());
             app.set_error(e);
@@ -222,9 +227,9 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                 use KeyCode::*;
                 match app.mode {
                     InputMode::Normal => match key.code {
-                        Char('q') | Esc => return Ok(()),
-                        Char('j') | Down => app.next(),
-                        Char('k') | Up => app.previous(),
+                        Char('q') => return Ok(()),
+                        Char('j') | Down => app.next(app.items.len()),
+                        Char('k') | Up => app.previous(app.items.len()),
                         Char('l') | Right => app.next_color(),
                         Char('h') | Left => app.previous_color(),
                         Char('w') => match app.write_file() {
@@ -232,7 +237,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                             _ => {}
                         },
                         Enter => app.set_mode(InputMode::Justification),
-                        Char('m') => app.set_mode(InputMode::ModelSelect),
+                        Char('m') | Esc => app.set_mode(InputMode::ModelSelect),
                         _ => {}
                     },
 
@@ -249,6 +254,15 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         _ => {}
                     },
                     InputMode::ModelSelect => match key.code {
+                        Char('q') | Esc => return Ok(()),
+                        Char('j') | Down => app.next(app.config.models.len()),
+                        Char('k') | Up => app.previous(app.config.models.len()),
+                        Char('l') | Right => app.next_color(),
+                        Char('h') | Left => app.previous_color(),
+                        Enter => {
+                            app.set_model(app.get_selected_model().clone());
+                            app.set_mode(InputMode::Normal)
+                        }
                         _ => {}
                     },
                 }
@@ -271,6 +285,14 @@ fn ui(f: &mut Frame, app: &mut App) {
             render_error(f, app, layout[0]);
             render_footer(f, app, layout[2]);
         }
+        InputMode::ModelSelect => {
+            let rects =
+                Layout::vertical([Constraint::Min(5), Constraint::Length(3)]).split(f.size());
+
+            render_models(f, app, rects[0]);
+            render_scrollbar(f, app, rects[0]);
+            render_footer(f, app, rects[1]);
+        }
         _ => {
             let rects = Layout::vertical([
                 Constraint::Min(5),
@@ -280,7 +302,7 @@ fn ui(f: &mut Frame, app: &mut App) {
             ])
             .split(f.size());
 
-            render_table(f, app, rects[0]);
+            render_bp(f, app, rects[0]);
             render_scrollbar(f, app, rects[0]);
             render_justification(f, app, rects[1]);
             render_cur_details(f, app, rects[2]);
@@ -289,7 +311,7 @@ fn ui(f: &mut Frame, app: &mut App) {
     }
 }
 
-fn render_table(f: &mut Frame, app: &mut App, area: Rect) {
+fn render_bp(f: &mut Frame, app: &mut App, area: Rect) {
     let header_style = Style::default()
         .fg(app.colors.header_fg)
         .bg(app.colors.header_bg);
@@ -356,6 +378,7 @@ fn render_footer(f: &mut Frame, app: &App, area: Rect) {
     let info_footer = Paragraph::new(Line::from(match app.mode {
         InputMode::Justification => INFO_TEXT_JUSTIFICATION,
         InputMode::Error => INFO_TEXT_ERROR,
+        InputMode::ModelSelect => INFO_TEXT_MODELSELECT,
         _ => INFO_TEXT_NORMAL,
     }))
     .style(Style::new().fg(app.colors.row_fg).bg(app.colors.buffer_bg))
@@ -415,4 +438,45 @@ fn render_error(f: &mut Frame, app: &App, area: Rect) {
                 .border_type(BorderType::Double),
         );
     f.render_widget(info_footer, area);
+}
+
+fn render_models(f: &mut Frame, app: &mut App, area: Rect) {
+    let header_style = Style::default()
+        .fg(app.colors.header_fg)
+        .bg(app.colors.header_bg);
+    let selected_style = Style::default()
+        .add_modifier(Modifier::REVERSED)
+        .fg(app.colors.selected_style_fg);
+
+    let header = ["Name"]
+        .into_iter()
+        .map(Cell::from)
+        .collect::<Row>()
+        .style(header_style)
+        .height(1);
+    let rows = app.config.models.iter().enumerate().map(|(i, model)| {
+        let color = match i % 2 {
+            0 => app.colors.normal_row_color,
+            _ => app.colors.alt_row_color,
+        };
+        let item = [model.name.clone()];
+        item.into_iter()
+            .map(|content| Cell::from(Text::from(format!("{content}"))))
+            .collect::<Row>()
+            .style(Style::new().fg(app.colors.row_fg).bg(color))
+            .height(1)
+    });
+    let bar = " █ ";
+    let t = Table::new(rows, [Constraint::Min(20)])
+        .header(header)
+        .highlight_style(selected_style)
+        .highlight_symbol(Text::from(vec![
+            "".into(),
+            bar.into(),
+            bar.into(),
+            "".into(),
+        ]))
+        .bg(app.colors.buffer_bg)
+        .highlight_spacing(HighlightSpacing::Always);
+    f.render_stateful_widget(t, area, &mut app.state);
 }
