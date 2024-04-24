@@ -14,3 +14,8 @@ Cargo.lock
 *.pdb
 
 config.toml
+
+
+# Added by cargo
+
+/target

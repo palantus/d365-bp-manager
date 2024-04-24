@@ -1,0 +1,16 @@
+[package]
+name = "bp-manager"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+crossterm = "0.27.0"
+quick-xml = {version = "0.31.0", features = ["serialize"]}
+ratatui = "0.26.2"
+serde = {version = "1.0.198", features = ["derive"]}
+serde-xml-rs = "0.6.0"
+#serde_xml = "0.9.1"
+toml = "0.8.12"
+xml = "0.8.20"
