@@ -1,6 +1,6 @@
 #![allow(clippy::enum_glob_use, clippy::wildcard_imports)]
 
-use std::{error::Error, io};
+use std::{cmp, error::Error, io};
 
 use config::{read_config, Config, Model};
 use crossterm::{
@@ -26,6 +26,7 @@ const PALETTES: [tailwind::Palette; 4] = [
 const INFO_TEXT_NORMAL: &str =
     "(Enter) enter justification | (Esc) quit | (↑) move up | (↓) move down | (w) write file";
 const INFO_TEXT_JUSTIFICATION: &str = "(Enter) go back";
+const INFO_TEXT_ERROR: &str = "(Esc) quit";
 
 const ITEM_HEIGHT: usize = 4;
 
@@ -68,6 +69,8 @@ impl Diagnostic {
 enum InputMode {
     Normal,
     Justification,
+    ModelSelect,
+    Error,
 }
 
 struct App {
@@ -79,19 +82,21 @@ struct App {
     mode: InputMode,
     model: Model,
     config: Config,
+    error_message: String,
 }
 
 impl App {
     fn new(data_vec: Vec<Diagnostic>, config: Config, model: Model) -> Self {
         Self {
             state: TableState::default().with_selected(0),
-            scroll_state: ScrollbarState::new((data_vec.len() - 1) * ITEM_HEIGHT),
+            scroll_state: ScrollbarState::new((cmp::max(data_vec.len(), 1) - 1) * ITEM_HEIGHT),
             colors: TableColors::new(&PALETTES[0]),
             color_index: 0,
             items: data_vec,
             mode: InputMode::Normal,
             model,
             config,
+            error_message: String::new(),
         }
     }
 
@@ -154,11 +159,14 @@ impl App {
     fn write_file(&self) {
         write_diagnostics(&self.items, &self.config, &self.model)
     }
+
+    pub fn set_error(&mut self, error_message: String) {
+        self.set_mode(InputMode::Error);
+        self.error_message = error_message;
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let (config, model) = read_config();
-    let data = read_diagnostics(&config, &model);
     // setup terminal
     enable_raw_mode()?;
     let mut stdout = io::stdout();
@@ -166,13 +174,23 @@ fn main() -> Result<(), Box<dyn Error>> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let data = data
-        .into_iter()
-        .filter(|d| d.Severity != "Informational")
-        .collect();
+    let app = match read_config() {
+        Ok((config, model)) => {
+            let data = read_diagnostics(&config, &model);
+            let data = data
+                .into_iter()
+                .filter(|d| d.Severity != "Informational")
+                .collect();
 
-    // create app and run it
-    let app = App::new(data, config, model);
+            // create app and run it
+            App::new(data, config, model)
+        }
+        Err(e) => {
+            let mut app = App::new(vec![], Config::default(), Model::default());
+            app.set_error(e);
+            app
+        }
+    };
     let res = run_app(&mut terminal, app);
 
     // restore terminal
@@ -207,6 +225,7 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         Char('h') | Left => app.previous_color(),
                         Char('w') => app.write_file(),
                         Enter => app.set_mode(InputMode::Justification),
+                        Char('m') => app.set_mode(InputMode::ModelSelect),
                         _ => {}
                     },
 
@@ -218,6 +237,13 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         }
                         _ => {}
                     },
+                    InputMode::Error => match key.code {
+                        Char('q') | Esc => return Ok(()),
+                        _ => {}
+                    },
+                    InputMode::ModelSelect => match key.code {
+                        _ => {}
+                    },
                 }
             }
         }
@@ -225,23 +251,35 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
 }
 
 fn ui(f: &mut Frame, app: &mut App) {
-    let rects = Layout::vertical([
-        Constraint::Min(5),
-        Constraint::Length(3),
-        Constraint::Length(3),
-        Constraint::Length(3),
-    ])
-    .split(f.size());
-
     app.set_colors();
+    match app.mode {
+        InputMode::Error => {
+            let layout = Layout::vertical([
+                Constraint::Length(3),
+                Constraint::Min(5),
+                Constraint::Length(3),
+            ])
+            .split(f.size());
 
-    render_table(f, app, rects[0]);
+            render_error(f, app, layout[0]);
+            render_footer(f, app, layout[2]);
+        }
+        _ => {
+            let rects = Layout::vertical([
+                Constraint::Min(5),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Length(3),
+            ])
+            .split(f.size());
 
-    render_scrollbar(f, app, rects[0]);
-
-    render_justification(f, app, rects[1]);
-    render_cur_details(f, app, rects[2]);
-    render_footer(f, app, rects[3]);
+            render_table(f, app, rects[0]);
+            render_scrollbar(f, app, rects[0]);
+            render_justification(f, app, rects[1]);
+            render_cur_details(f, app, rects[2]);
+            render_footer(f, app, rects[3]);
+        }
+    }
 }
 
 fn render_table(f: &mut Frame, app: &mut App, area: Rect) {
@@ -310,6 +348,7 @@ fn render_scrollbar(f: &mut Frame, app: &mut App, area: Rect) {
 fn render_footer(f: &mut Frame, app: &App, area: Rect) {
     let info_footer = Paragraph::new(Line::from(match app.mode {
         InputMode::Justification => INFO_TEXT_JUSTIFICATION,
+        InputMode::Error => INFO_TEXT_ERROR,
         _ => INFO_TEXT_NORMAL,
     }))
     .style(Style::new().fg(app.colors.row_fg).bg(app.colors.buffer_bg))
@@ -345,10 +384,23 @@ fn render_justification(f: &mut Frame, app: &App, area: Rect) {
     );
     let info_footer = Paragraph::new(Line::from(text))
         .style(match app.mode {
-            InputMode::Normal => Style::new().fg(app.colors.row_fg).bg(app.colors.buffer_bg),
             InputMode::Justification => Style::default().fg(Color::Yellow),
+            _ => Style::new().fg(app.colors.row_fg).bg(app.colors.buffer_bg),
         })
         // .centered()
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .border_style(Style::new().fg(app.colors.footer_border_color))
+                .border_type(BorderType::Double),
+        );
+    f.render_widget(info_footer, area);
+}
+
+fn render_error(f: &mut Frame, app: &App, area: Rect) {
+    let info_footer = Paragraph::new(Line::from(app.error_message.clone()))
+        .style(Style::new().fg(app.colors.row_fg).bg(app.colors.buffer_bg))
+        .centered()
         .block(
             Block::default()
                 .borders(Borders::ALL)

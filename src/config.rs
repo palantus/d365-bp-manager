@@ -2,47 +2,49 @@ use std::{fs, path::Path};
 
 use serde::Deserialize;
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct Config {
     pub modelpath: String,
     pub models: Vec<Model>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Default)]
 pub struct Model {
     pub name: String,
     pub alias: String,
 }
 
-pub fn read_config() -> (Config, Model) {
+pub fn read_config() -> Result<(Config, Model), String> {
     let args: Vec<String> = std::env::args().collect();
     // println!("{0:?}", args);
     if args.len() < 2 {
-        panic!("No model argument specified")
+        return Err("No model argument specified".to_owned());
     }
     let arg_name = args[1].clone();
     let toml = fs::read_to_string("./config.toml").unwrap();
     let config: Config = toml::from_str(&toml).unwrap();
 
-    let model = config
+    let model = match config
         .models
         .iter()
         .find(|m| m.name == arg_name || m.alias == arg_name)
-        .expect("Could not find model in config.toml")
-        .clone();
+    {
+        Some(m) => m.clone(),
+        None => return Err("Could not find model in config.toml".to_owned()),
+    };
 
     let models_path = Path::new(&config.modelpath);
     if !models_path.exists() {
-        panic!("Base model path in config doesn't exist");
+        return Err("Base model path in config doesn't exist".to_owned());
     }
     let model_path = models_path.join(&model.name);
     if !model_path.exists() {
-        panic!("Model in config doesn't exist");
+        return Err("Model in config doesn't exist".to_owned());
     }
 
     let bp_file_path = model_path.join("BPCheck.xml");
     if !bp_file_path.exists() {
-        panic!("BPCheck.xml doesn't exist in model");
+        return Err("BPCheck.xml doesn't exist in model".to_owned());
     }
-    (config, model)
+    Ok((config, model))
 }
