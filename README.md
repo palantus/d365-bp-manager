@@ -19,6 +19,10 @@ Best practices:
 * Write justification
 * Generate new suppression xml file with your new justifications
 
+## Installation
+
+Download from Releases and extract zip file.
+
 ## Setup
 
 Create a `config.toml` file with something like:
