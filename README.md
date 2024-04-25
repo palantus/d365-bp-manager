@@ -29,10 +29,7 @@ Create a `config.toml` file with something like:
 
 ```toml
 modelpath = 'C:\\AOSService\\PackagesLocalDirectory'
-models = [
-	'MyModelNO', 
-	'MyModelCore'
-]
+models = ['MyModelNO', 'MyModelCore']
 ```
 
 Run with:
