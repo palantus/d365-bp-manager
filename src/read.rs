@@ -5,7 +5,7 @@ use std::{fs, path::Path};
 use serde::{Deserialize, Serialize};
 use serde_xml_rs::from_str;
 
-use crate::config::{Config, Model};
+use crate::config::Config;
 
 #[derive(Debug, PartialEq, Deserialize, Serialize)]
 pub struct Diagnostics {
@@ -33,12 +33,12 @@ pub struct Diagnostic {
     pub Justification: String,
 }
 
-pub fn read_diagnostics(config: &Config, model: &Model) -> Result<Vec<Diagnostic>, String> {
+pub fn read_diagnostics(config: &Config, model: &String) -> Result<Vec<Diagnostic>, String> {
     let modelsPath = Path::new(&config.modelpath);
     if !modelsPath.exists() {
         return Err("Base model path in config doesn't exist".to_owned());
     }
-    let modelPath = modelsPath.join(&model.name);
+    let modelPath = modelsPath.join(&model);
     if !modelPath.exists() {
         return Err("Model in config doesn't exist".to_owned());
     }

@@ -6,10 +6,7 @@ use quick_xml::se::to_string;
 use serde::{Deserialize, Serialize};
 use serde_xml_rs::from_str;
 
-use crate::{
-    config::{Config, Model},
-    read::Diagnostic,
-};
+use crate::{config::Config, read::Diagnostic};
 use xml::{reader::ParserConfig, writer::EmitterConfig};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
@@ -26,21 +23,21 @@ struct Items {
 pub fn write_diagnostics(
     data: &Vec<Diagnostic>,
     config: &Config,
-    model: &Model,
+    model: &String,
 ) -> Result<(), String> {
     let modelsPath = Path::new(&config.modelpath);
     if !modelsPath.exists() {
         return Err("Base model path in config doesn't exist".to_owned());
     }
-    let modelPath = modelsPath.join(&model.name);
+    let modelPath = modelsPath.join(&model);
     if !modelPath.exists() {
         return Err("Model in config doesn't exist".to_owned());
     }
 
     let supp_file_path = modelPath
-        .join(&model.name)
+        .join(&model)
         .join("AxIgnoreDiagnosticList")
-        .join(format!("{}_BPSuppressions.xml", &model.name));
+        .join(format!("{}_BPSuppressions.xml", &model));
     if !supp_file_path.exists() {
         return Err(format!(
             "Suppressions file doesn't exist in model: {}",

@@ -5,13 +5,7 @@ use serde::Deserialize;
 #[derive(Deserialize, Default)]
 pub struct Config {
     pub modelpath: String,
-    pub models: Vec<Model>,
-}
-
-#[derive(Deserialize, Clone, Default)]
-pub struct Model {
-    pub name: String,
-    pub alias: String,
+    pub models: Vec<String>,
 }
 
 pub fn read_config() -> Result<Config, String> {

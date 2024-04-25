@@ -2,7 +2,7 @@
 
 use std::{cmp, error::Error, io};
 
-use config::{read_config, Config, Model};
+use config::{read_config, Config};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
@@ -81,13 +81,13 @@ struct App {
     colors: TableColors,
     color_index: usize,
     mode: InputMode,
-    model: Model,
+    model: String,
     config: Config,
     error_message: String,
 }
 
 impl App {
-    fn new(data_vec: Vec<Diagnostic>, config: Config, model: Model) -> Self {
+    fn new(data_vec: Vec<Diagnostic>, config: Config, model: String) -> Self {
         Self {
             state: TableState::default().with_selected(0),
             scroll_state: ScrollbarState::new((cmp::max(data_vec.len(), 1) - 1) * ITEM_HEIGHT),
@@ -166,7 +166,7 @@ impl App {
         self.error_message = error_message;
     }
 
-    pub fn set_model(&mut self, model: Model) {
+    pub fn set_model(&mut self, model: String) {
         self.model = model;
         match read_diagnostics(&self.config, &self.model) {
             Ok(data) => {
@@ -179,7 +179,7 @@ impl App {
         }
     }
 
-    pub fn get_selected_model(&self) -> &Model {
+    pub fn get_selected_model(&self) -> &String {
         &self.config.models[self.state.selected().unwrap()]
     }
 }
@@ -193,9 +193,9 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let app = match read_config() {
-        Ok(config) => App::new(vec![], config, Model::default()),
+        Ok(config) => App::new(vec![], config, String::new()),
         Err(e) => {
-            let mut app = App::new(vec![], Config::default(), Model::default());
+            let mut app = App::new(vec![], Config::default(), String::new());
             app.set_error(e);
             app
         }
@@ -459,7 +459,7 @@ fn render_models(f: &mut Frame, app: &mut App, area: Rect) {
             0 => app.colors.normal_row_color,
             _ => app.colors.alt_row_color,
         };
-        let item = [model.name.clone()];
+        let item = [model.clone()];
         item.into_iter()
             .map(|content| Cell::from(Text::from(format!("{content}"))))
             .collect::<Row>()
