@@ -144,13 +144,24 @@ impl App {
         self.colors = TableColors::new(&PALETTES[self.color_index]);
     }
 
-    pub fn get_selected(&self) -> &Diagnostic {
-        &self.items[self.state.selected().unwrap()]
+    pub fn get_selected(&self) -> Option<&Diagnostic> {
+        if self.items.len() < 1 {
+            return None;
+        }
+        match self.state.selected() {
+            Some(idx) => Some(&self.items[idx]),
+            None => None,
+        }
     }
 
-    pub fn get_selected_mut(&mut self) -> &mut Diagnostic {
-        let index = self.state.selected().unwrap();
-        self.items.get_mut(index).unwrap()
+    pub fn get_selected_mut(&mut self) -> Option<&mut Diagnostic> {
+        if self.items.len() < 1 {
+            return None;
+        }
+        match self.state.selected() {
+            Some(idx) => Some(self.items.get_mut(idx).unwrap()),
+            None => None,
+        }
     }
 
     pub fn set_mode(&mut self, mode: InputMode) {
@@ -179,8 +190,11 @@ impl App {
         }
     }
 
-    pub fn get_selected_model(&self) -> &String {
-        &self.config.models[self.state.selected().unwrap()]
+    pub fn get_selected_model(&self) -> Option<&String> {
+        if self.config.models.len() < 1 {
+            return None;
+        }
+        Some(&self.config.models[self.state.selected().unwrap()])
     }
 }
 
@@ -243,10 +257,16 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
 
                     InputMode::Justification => match key.code {
                         Esc | Enter => app.set_mode(InputMode::Normal),
-                        Char(c) => app.get_selected_mut().Justification.push(c),
-                        Backspace => {
-                            app.get_selected_mut().Justification.pop();
-                        }
+                        Char(c) => match app.get_selected_mut() {
+                            Some(s) => s.Justification.push(c),
+                            None => {}
+                        },
+                        Backspace => match app.get_selected_mut() {
+                            Some(s) => {
+                                s.Justification.pop();
+                            }
+                            None => {}
+                        },
                         _ => {}
                     },
                     InputMode::Error => match key.code {
@@ -259,10 +279,13 @@ fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> io::Result<(
                         Char('k') | Up => app.previous(app.config.models.len()),
                         Char('l') | Right => app.next_color(),
                         Char('h') | Left => app.previous_color(),
-                        Enter => {
-                            app.set_model(app.get_selected_model().clone());
-                            app.set_mode(InputMode::Normal)
-                        }
+                        Enter => match app.get_selected_model() {
+                            Some(m) => {
+                                app.set_model(m.clone());
+                                app.set_mode(InputMode::Normal)
+                            }
+                            None => (),
+                        },
                         _ => {}
                     },
                 }
@@ -393,8 +416,11 @@ fn render_footer(f: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_cur_details(f: &mut Frame, app: &App, area: Rect) {
-    let selected = app.get_selected();
-    let info = selected.info().clone();
+    let info = match app.get_selected() {
+        Some(s) => s.info().clone(),
+        None => "None selected".to_owned(),
+    };
+
     let info_footer = Paragraph::new(Line::from(info))
         .style(Style::new().fg(app.colors.row_fg).bg(app.colors.buffer_bg))
         // .centered()
@@ -410,7 +436,10 @@ fn render_cur_details(f: &mut Frame, app: &App, area: Rect) {
 fn render_justification(f: &mut Frame, app: &App, area: Rect) {
     let text = format!(
         "Justification: {}",
-        app.get_selected().Justification.clone()
+        match app.get_selected() {
+            Some(s) => s.Justification.clone(),
+            None => "".to_owned(),
+        }
     );
     let info_footer = Paragraph::new(Line::from(text))
         .style(match app.mode {
