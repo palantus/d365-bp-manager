@@ -9,8 +9,14 @@ pub struct Config {
 }
 
 pub fn read_config() -> Result<Config, String> {
-    let toml = fs::read_to_string("./config.toml").unwrap();
-    let config: Config = toml::from_str(&toml).unwrap();
+    let toml = match fs::read_to_string("./config.toml") {
+        Ok(toml) => toml,
+        Err(_e) => return Err("Config file missing".to_owned()),
+    };
+    let config: Config = match toml::from_str(&toml) {
+        Ok(c) => c,
+        Err(_e) => return Err("Config file could not be parsed".to_owned()),
+    };
 
     let models_path = Path::new(&config.modelpath);
     if !models_path.exists() {

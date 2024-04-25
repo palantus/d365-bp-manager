@@ -3,11 +3,11 @@ Best Practices manager for D365
 
 ## Screenshots
 
-Model view:
+Select model:
 
 ![image](https://github.com/palantus/d365-bp-manager/assets/819342/07d3b36f-8a21-497f-9b83-c0c7d13bf270)
 
-Best practices missing justifications:
+Best practices:
 
 ![image](https://github.com/palantus/d365-bp-manager/assets/819342/a9a0831b-c984-4160-b87e-53940be77c48)
 
@@ -15,8 +15,8 @@ Best practices missing justifications:
 
 * Select model
 * View best practices from last best practice check
-* Type justification
-* Write new suppression xml file
+* Write justification
+* Generate new suppression xml file
 
 ## Setup
 

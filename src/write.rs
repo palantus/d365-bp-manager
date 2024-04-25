@@ -41,11 +41,22 @@ pub fn write_diagnostics(
     if !supp_file_path.exists() {
         return Err(format!(
             "Suppressions file doesn't exist in model: {}",
-            supp_file_path.to_str().unwrap()
+            supp_file_path.to_str().unwrap_or("N/A")
         ));
     }
-    let xml = fs::read_to_string(&supp_file_path).unwrap();
-    let mut suppressions: IgnoreDiagnostics = from_str(&xml).unwrap();
+    let xml = match fs::read_to_string(&supp_file_path) {
+        Ok(xml) => xml,
+        Err(_) => {
+            return Err(format!(
+                "Could not read {}",
+                &supp_file_path.to_str().unwrap_or("N/A")
+            ))
+        }
+    };
+    let mut suppressions: IgnoreDiagnostics = match from_str(&xml) {
+        Ok(xml) => xml,
+        Err(_) => return Err("Could not parse suppression xml file".to_owned()),
+    };
 
     for item in data {
         if item.Justification == "" {
@@ -67,18 +78,22 @@ pub fn write_diagnostics(
         }
     }
 
-    match to_string(&suppressions) {
-        Ok(xml) => {
-            let xml = format_xml(xml.as_bytes()).unwrap();
-            fs::write(&supp_file_path, xml).unwrap();
+    let xml = match to_string(&suppressions) {
+        Ok(xml) => xml,
+        Err(_) => {
+            return Err("Could not serialize suppressions".to_owned());
         }
-        Err(err) => {
-            dbg!(err);
+    };
+    let xml = match format_xml(xml.as_bytes()) {
+        Ok(xml) => xml,
+        Err(_) => {
+            return Err("Could not format suppressions".to_owned());
         }
+    };
+    match fs::write(&supp_file_path, xml) {
+        Ok(_) => Ok(()),
+        Err(_) => Err("Could not write suppressions file".to_owned()),
     }
-    // println!("{0:?}", diags.Items);
-
-    Ok(())
 }
 
 fn format_xml(src: &[u8]) -> Result<String, xml::reader::Error> {

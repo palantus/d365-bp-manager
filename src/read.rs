@@ -47,7 +47,13 @@ pub fn read_diagnostics(config: &Config, model: &String) -> Result<Vec<Diagnosti
     if !bpFilePath.exists() {
         return Err("BPCheck.xml doesn't exist in model".to_owned());
     }
-    let xml = fs::read_to_string(bpFilePath).unwrap();
-    let diags: Diagnostics = from_str(&xml).unwrap();
+    let xml = match fs::read_to_string(bpFilePath) {
+        Ok(xml) => xml,
+        Err(_) => return Err("Could not read BPCheck.xml".to_owned()),
+    };
+    let diags: Diagnostics = match from_str(&xml) {
+        Ok(xml) => xml,
+        Err(_) => return Err("Could not parse xml file BPCheck.xml".to_owned()),
+    };
     Ok(diags.Items.Diagnostic)
 }
