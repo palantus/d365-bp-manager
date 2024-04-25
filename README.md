@@ -1,5 +1,6 @@
-# d365-bp-manager
-Best Practices manager for D365
+# Best Practices manager for D365
+
+This is a graphical terminal app written in rust, that enables you to get an overview of the output from the last BP-check and write justifications.
 
 ## Screenshots
 
