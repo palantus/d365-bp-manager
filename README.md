@@ -1,6 +1,6 @@
 # Best Practices manager for D365
 
-This is a graphical terminal app written in rust, that enables you to get an overview of the output from the last BP-check and write justifications.
+This is a graphical terminal app written in Rust, that enables you to get an overview of the output from the last BP-check and write justifications.
 
 ## Screenshots
 
@@ -17,7 +17,7 @@ Best practices:
 * Select model
 * View best practices from last best practice check
 * Write justification
-* Generate new suppression xml file
+* Generate new suppression xml file with your new justifications
 
 ## Setup
 
