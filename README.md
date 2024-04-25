@@ -25,12 +25,12 @@ Create a `config.toml` file with something like:
 ```toml
 modelpath = 'C:\\AOSService\\PackagesLocalDirectory'
 models = [
-	{name = 'MyModel1', alias = 'm1'},
-	{name = 'MyModel2', alias = 'm2'},
+	'MyModelNO', 
+	'MyModelCore'
 ]
 ```
 
 Run with:
 ```
-.\bp-manager.exe m2
+.\bp-manager.exe
 ```
