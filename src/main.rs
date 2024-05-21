@@ -149,7 +149,12 @@ impl App {
             return None;
         }
         match self.state.selected() {
-            Some(idx) => Some(&self.items[idx]),
+            Some(idx) => {
+                if idx >= self.items.len() {
+                    return None;
+                }
+                Some(&self.items[idx])
+            }
             None => None,
         }
     }
@@ -185,6 +190,7 @@ impl App {
                     .into_iter()
                     .filter(|d| d.Severity != "Informational")
                     .collect();
+                self.state.select(Some(0))
             }
             Err(e) => self.set_error(e),
         }
